@@ -1,5 +1,8 @@
 import logging
+import os
 import sys
+
+_LEVEL = logging.DEBUG if os.getenv("ENV", "development") != "production" else logging.INFO
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -13,5 +16,5 @@ def get_logger(name: str) -> logging.Logger:
             )
         )
         logger.addHandler(handler)
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(_LEVEL)
     return logger

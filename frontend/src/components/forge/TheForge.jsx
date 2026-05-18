@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useGenerateScript } from '../../hooks/useGenerateScript'
 import { useSaveScript } from '../../hooks/useSaveScript'
-import { useTrackUsage } from '../../hooks/useTrackUsage'
 import { useUIStore, useAuthStore } from '../../store'
 import { Button } from '../shared/Button'
 import { Textarea } from '../shared/Input'
@@ -87,7 +86,6 @@ function Spinner() {
 
 function VariationCard({ variation, intent, tone, context, index }) {
   const saveScript = useSaveScript()
-  const trackUsage = useTrackUsage()
   const addToast = useUIStore((s) => s.addToast)
   const [copied, setCopied] = useState(false)
 
