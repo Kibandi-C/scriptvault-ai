@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  # ─── MongoDB ──────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: scriptvault_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-scriptvault_secret}
+      MONGO_INITDB_DATABASE: scriptvault
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./backend/db/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    networks:
+      - sv_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FastAPI Backend ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scriptvault_api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-scriptvault_secret}@mongo:27017/scriptvault?authSource=admin
+      - ENV=development
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - sv_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─── React Frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: scriptvault_ui
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules          # anonymous volume — keep container modules
+    depends_on:
+      - backend
+    networks:
+      - sv_network
+    command: npm run dev -- --host 0.0.0.0
+
+  # ─── Mongo Express (dev only) ──────────────────────────────────────────────
+  mongo-express:
+    image: mongo-express:1.0
+    container_name: scriptvault_mongoexpress
+    restart: unless-stopped
+    profiles: ["dev"]              # only starts with: docker compose --profile dev up
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER:-admin}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASS:-scriptvault_secret}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-scriptvault_secret}@mongo:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - sv_network
+
+volumes:
+  mongo_data:
+    name: scriptvault_mongo_data
+
+networks:
+  sv_network:
+    name: scriptvault_network
+    driver: bridge
